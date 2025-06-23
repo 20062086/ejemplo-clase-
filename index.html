@@ -3,32 +3,32 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Bot de Dominio, Rango y Gráfica</title>
+  <title>Bot Dominio, Rango y Gráfica</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
+      background: #fceeff;
       font-family: 'Segoe UI', sans-serif;
-      background-color: #f0e6ff;
       text-align: center;
       padding: 30px;
     }
     .bot-box {
-      background: #fff;
-      border-radius: 15px;
-      box-shadow: 0 0 10px #aaa;
+      background: white;
       padding: 25px;
-      max-width: 700px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px #aaa;
+      max-width: 800px;
       margin: auto;
     }
     input, button {
       padding: 10px;
       font-size: 16px;
-      margin-top: 10px;
       width: 80%;
+      margin-top: 10px;
     }
     .respuesta {
       font-weight: bold;
-      color: #5e2a9e;
+      color: #8e24aa;
       margin-top: 20px;
     }
     #grafica {
@@ -55,32 +55,46 @@
 
     function analizarFuncion() {
       const entrada = document.getElementById("funcionInput").value.trim().toLowerCase();
+      const salida = document.getElementById("respuesta");
       let expr = entrada.replace("f(x)=", "").replace("^", "**");
 
-      let mensaje = "";
-      let tieneAsintotas = false;
+      let tipo = "";
+      let dominio = "Todos los números reales";
+      let rango = "Todos los números reales";
+      let asintotas = "Ninguna";
+      let respuesta = "";
 
       try {
         const f = new Function("x", "return " + expr);
 
-        // Detectar el tipo
+        // Clasificación
         if (expr.includes("**2")) {
-          mensaje = "Es una función cuadrática. El dominio es todos los reales. El rango depende de la orientación de la parábola.";
+          tipo = "cuadrática";
+          rango = "f(x) ≥ mínimo si la parábola abre hacia arriba, o f(x) ≤ máximo si abre hacia abajo.";
         } else if (expr.includes("/") && expr.includes("x")) {
-          mensaje = "Es una función racional. Tiene una asíntota vertical donde el denominador se hace cero.";
-          tieneAsintotas = true;
+          tipo = "racional";
+          asintotas = "Tiene asíntota(s) vertical(es) donde el denominador se hace cero.";
+          // Estimar asíntota vertical
+          const match = expr.match(/\/\((x[^\)]*)\)/);
+          if (match) {
+            const asintota = match[1].replace("=", "").trim();
+            asintotas += ` Posible en x = ${asintota}`;
+            dominio = "Todos los reales excepto donde el denominador se hace cero.";
+          }
+          rango = "Todos los reales excepto donde no hay imagen, según la asíntota horizontal o valores excluidos.";
         } else if (expr.includes("x")) {
-          mensaje = "Es una función lineal. Su dominio y rango son todos los reales.";
+          tipo = "lineal";
         } else {
-          mensaje = "Ingresa una función válida con 'x'.";
+          tipo = "constante o no válida";
         }
 
-        document.getElementById("respuesta").innerText = mensaje;
-        hablar(mensaje);
+        // Construir mensaje
+        respuesta = `📌 Tipo de función: ${tipo.toUpperCase()}.\n🧠 Dominio: ${dominio}.\n📈 Rango: ${rango}.\n⚠️ Asíntotas: ${asintotas}.`;
+        salida.innerText = respuesta;
+        hablar(respuesta);
 
-        // Datos para graficar
-        const x = [];
-        const y = [];
+        // Gráfico
+        const x = [], y = [];
         for (let i = -20; i <= 20; i += 0.1) {
           try {
             const val = f(i);
@@ -89,7 +103,7 @@
               y.push(val);
             } else {
               x.push(i);
-              y.push(null); // Saltar asíntotas
+              y.push(null);
             }
           } catch {
             x.push(i);
@@ -102,7 +116,7 @@
           y: y,
           type: 'scatter',
           mode: 'lines',
-          line: { color: '#663399' }
+          line: { color: '#8e24aa' }
         }];
 
         Plotly.newPlot("grafica", data, {
@@ -112,12 +126,11 @@
         });
 
       } catch (e) {
-        const errorMsg = "No pude entender esa función. Revisa la sintaxis.";
-        document.getElementById("respuesta").innerText = errorMsg;
-        hablar(errorMsg);
+        const error = "⚠️ Error: No pude entender esa función. Revisa si escribiste bien.";
+        salida.innerText = error;
+        hablar(error);
       }
     }
   </script>
 </body>
 </html>
-
