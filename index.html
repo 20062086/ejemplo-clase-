@@ -3,18 +3,18 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Bot Dominio, Rango y Gráfica</title>
+  <title>Bot: Dominio, Rango y Asíntotas</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
-      background: #fceeff;
+      background: #f0e6ff;
       font-family: 'Segoe UI', sans-serif;
       text-align: center;
       padding: 30px;
     }
     .bot-box {
       background: white;
-      padding: 25px;
+      padding: 30px;
       border-radius: 15px;
       box-shadow: 0 0 15px #aaa;
       max-width: 800px;
@@ -23,13 +23,14 @@
     input, button {
       padding: 10px;
       font-size: 16px;
-      width: 80%;
       margin-top: 10px;
+      width: 80%;
     }
     .respuesta {
       font-weight: bold;
-      color: #8e24aa;
+      color: #6a1b9a;
       margin-top: 20px;
+      white-space: pre-line;
     }
     #grafica {
       margin-top: 30px;
@@ -38,8 +39,8 @@
 </head>
 <body>
   <div class="bot-box">
-    <h2>🤖 Bot: Dominio, Rango, Asíntotas y Gráfica</h2>
-    <input type="text" id="funcionInput" placeholder="Ej: f(x) = x^2 - 4 o f(x) = 1/(x-2)">
+    <h2>🤖 Bot de Dominio, Rango y Asíntotas</h2>
+    <input type="text" id="funcionInput" placeholder="Ej: f(x) = x^2 - 4, f(x) = 1/(x-2)">
     <br>
     <button onclick="analizarFuncion()">Resolver</button>
     <div class="respuesta" id="respuesta"></div>
@@ -56,44 +57,72 @@
     function analizarFuncion() {
       const entrada = document.getElementById("funcionInput").value.trim().toLowerCase();
       const salida = document.getElementById("respuesta");
-      let expr = entrada.replace("f(x)=", "").replace("^", "**");
+      const expr = entrada.replace("f(x)=", "").replace("^", "**");
+
+      // Validación mejorada
+      let f;
+      try {
+        f = new Function("x", "return " + expr);
+        f(1); // probar si funciona con x = 1
+      } catch (error) {
+        const mensajeError = "⚠️ Error: función mal escrita. Verifica la sintaxis.";
+        salida.innerText = mensajeError;
+        hablar(mensajeError);
+        return;
+      }
 
       let tipo = "";
-      let dominio = "Todos los números reales";
-      let rango = "Todos los números reales";
-      let asintotas = "Ninguna";
+      let dominio = "Df: {x ∈ ℝ}";
+      let rango = "Rf: {y ∈ ℝ}";
+      let asintotasVert = "Ninguna";
+      let asintotasHorz = "Ninguna";
       let respuesta = "";
 
       try {
-        const f = new Function("x", "return " + expr);
-
-        // Clasificación
+        // Clasificación de la función
         if (expr.includes("**2")) {
-          tipo = "cuadrática";
-          rango = "f(x) ≥ mínimo si la parábola abre hacia arriba, o f(x) ≤ máximo si abre hacia abajo.";
+          tipo = "Cuadrática";
+          rango = "Rf: {y ∈ ℝ | y ≥ valor mínimo de la parábola}";
         } else if (expr.includes("/") && expr.includes("x")) {
-          tipo = "racional";
-          asintotas = "Tiene asíntota(s) vertical(es) donde el denominador se hace cero.";
-          // Estimar asíntota vertical
-          const match = expr.match(/\/\((x[^\)]*)\)/);
-          if (match) {
-            const asintota = match[1].replace("=", "").trim();
-            asintotas += ` Posible en x = ${asintota}`;
-            dominio = "Todos los reales excepto donde el denominador se hace cero.";
+          tipo = "Racional";
+
+          // Asíntotas verticales
+          let posibles = expr.match(/\(.*?\)/g);
+          if (posibles) {
+            posibles.forEach((parte) => {
+              if (parte.includes("x")) {
+                const sinParentesis = parte.replace(/[()]/g, "");
+                const solucion = resolverCorte(sinParentesis);
+                if (solucion !== null) {
+                  dominio = `Df: {x ∈ ℝ | x ≠ ${solucion}}`;
+                  asintotasVert = `x = ${solucion}`;
+                }
+              }
+            });
           }
-          rango = "Todos los reales excepto donde no hay imagen, según la asíntota horizontal o valores excluidos.";
+
+          // Asíntotas horizontales (solo estimada para este caso)
+          if (expr.match(/x\s*\*\*\s*\d/)) {
+            asintotasHorz = "y = 0 (cuando grado de numerador < denominador)";
+            rango = "Rf: {y ∈ ℝ | y ≠ 0}";
+          }
         } else if (expr.includes("x")) {
-          tipo = "lineal";
+          tipo = "Lineal";
         } else {
-          tipo = "constante o no válida";
+          tipo = "Constante o no válida";
         }
 
-        // Construir mensaje
-        respuesta = `📌 Tipo de función: ${tipo.toUpperCase()}.\n🧠 Dominio: ${dominio}.\n📈 Rango: ${rango}.\n⚠️ Asíntotas: ${asintotas}.`;
-        salida.innerText = respuesta;
-        hablar(respuesta);
+        // Crear respuesta
+        respuesta = `📌 Tipo de función: ${tipo}
+🧠 Dominio: ${dominio}
+📈 Rango: ${rango}
+⚠️ Asíntotas Verticales: ${asintotasVert}
+➖ Asíntotas Horizontales: ${asintotasHorz}`;
 
-        // Gráfico
+        salida.innerText = respuesta;
+        hablar(respuesta.replace(/\n/g, ". "));
+
+        // Graficar
         const x = [], y = [];
         for (let i = -20; i <= 20; i += 0.1) {
           try {
@@ -111,26 +140,40 @@
           }
         }
 
-        const data = [{
+        Plotly.newPlot("grafica", [{
           x: x,
           y: y,
           type: 'scatter',
           mode: 'lines',
           line: { color: '#8e24aa' }
-        }];
-
-        Plotly.newPlot("grafica", data, {
+        }], {
           title: "Gráfica de la función",
           xaxis: { title: "x" },
           yaxis: { title: "f(x)" }
         });
 
       } catch (e) {
-        const error = "⚠️ Error: No pude entender esa función. Revisa si escribiste bien.";
+        const error = "⚠️ Error inesperado. Revisa la función.";
         salida.innerText = error;
         hablar(error);
       }
     }
+
+    function resolverCorte(expresion) {
+      try {
+        if (expresion.includes("x")) {
+          let parts = expresion.split("x");
+          let coef = parts[0] === "" ? 1 : parseFloat(parts[0]);
+          let constante = parts[1] ? parseFloat(parts[1]) : 0;
+          let solucion = -constante / coef;
+          return Math.round(solucion * 100) / 100;
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
   </script>
 </body>
 </html>
+
