@@ -1,1 +1,68 @@
 # ejemplo-clase-
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Bot de Dominio y Rango</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7e1ff;
+      text-align: center;
+      padding: 50px;
+    }
+    .bot-box {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 0 10px #888;
+      max-width: 500px;
+      margin: auto;
+    }
+    input, button {
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 16px;
+    }
+    .respuesta {
+      margin-top: 20px;
+      font-weight: bold;
+      color: #663399;
+    }
+  </style>
+</head>
+<body>
+  <div class="bot-box">
+    <h2>🤖 Bot de Dominio y Rango</h2>
+    <p>Ingresa una función (ej: <code>f(x) = 2x + 3</code> o <code>f(x) = x^2 - 4</code>)</p>
+    <input type="text" id="funcionInput" placeholder="f(x) = ...">
+    <br>
+    <button onclick="resolver()">Resolver</button>
+    <div class="respuesta" id="respuesta"></div>
+  </div>
+
+  <script>
+    function hablar(texto) {
+      const voz = new SpeechSynthesisUtterance(texto);
+      voz.lang = 'es-ES';
+      speechSynthesis.speak(voz);
+    }
+
+    function resolver() {
+      const entrada = document.getElementById("funcionInput").value.trim().toLowerCase();
+      let respuesta = "";
+
+      if (entrada.includes("x^2") || entrada.includes("x²")) {
+        respuesta = "Es una función cuadrática. Su dominio es todo número real. Su rango es desde el valor mínimo hasta infinito si la parábola abre hacia arriba, o desde menos infinito hasta el valor máximo si abre hacia abajo.";
+      } else if (entrada.includes("x")) {
+        respuesta = "Es una función lineal. Su dominio y rango son todos los números reales.";
+      } else {
+        respuesta = "Por favor, ingresa una función válida con x.";
+      }
+
+      document.getElementById("respuesta").innerText = respuesta;
+      hablar(respuesta);
+    }
+  </script>
+</body>
+</html>
