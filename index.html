@@ -3,66 +3,121 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Bot de Dominio y Rango</title>
+  <title>Bot de Dominio, Rango y Gráfica</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f7e1ff;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f0e6ff;
       text-align: center;
-      padding: 50px;
+      padding: 30px;
     }
     .bot-box {
-      background: white;
-      padding: 30px;
+      background: #fff;
       border-radius: 15px;
-      box-shadow: 0 0 10px #888;
-      max-width: 500px;
+      box-shadow: 0 0 10px #aaa;
+      padding: 25px;
+      max-width: 700px;
       margin: auto;
     }
     input, button {
       padding: 10px;
-      margin-top: 10px;
       font-size: 16px;
+      margin-top: 10px;
+      width: 80%;
     }
     .respuesta {
-      margin-top: 20px;
       font-weight: bold;
-      color: #663399;
+      color: #5e2a9e;
+      margin-top: 20px;
+    }
+    #grafica {
+      margin-top: 30px;
     }
   </style>
 </head>
 <body>
   <div class="bot-box">
-    <h2>🤖 Bot de Dominio y Rango</h2>
-    <p>Ingresa una función (ej: <code>f(x) = 2x + 3</code> o <code>f(x) = x^2 - 4</code>)</p>
-    <input type="text" id="funcionInput" placeholder="f(x) = ...">
+    <h2>🤖 Bot: Dominio, Rango, Asíntotas y Gráfica</h2>
+    <input type="text" id="funcionInput" placeholder="Ej: f(x) = x^2 - 4 o f(x) = 1/(x-2)">
     <br>
-    <button onclick="resolver()">Resolver</button>
+    <button onclick="analizarFuncion()">Resolver</button>
     <div class="respuesta" id="respuesta"></div>
+    <div id="grafica"></div>
   </div>
 
   <script>
     function hablar(texto) {
       const voz = new SpeechSynthesisUtterance(texto);
-      voz.lang = 'es-ES';
+      voz.lang = "es-ES";
       speechSynthesis.speak(voz);
     }
 
-    function resolver() {
+    function analizarFuncion() {
       const entrada = document.getElementById("funcionInput").value.trim().toLowerCase();
-      let respuesta = "";
+      let expr = entrada.replace("f(x)=", "").replace("^", "**");
 
-      if (entrada.includes("x^2") || entrada.includes("x²")) {
-        respuesta = "Es una función cuadrática. Su dominio es todo número real. Su rango es desde el valor mínimo hasta infinito si la parábola abre hacia arriba, o desde menos infinito hasta el valor máximo si abre hacia abajo.";
-      } else if (entrada.includes("x")) {
-        respuesta = "Es una función lineal. Su dominio y rango son todos los números reales.";
-      } else {
-        respuesta = "Por favor, ingresa una función válida con x.";
+      let mensaje = "";
+      let tieneAsintotas = false;
+
+      try {
+        const f = new Function("x", "return " + expr);
+
+        // Detectar el tipo
+        if (expr.includes("**2")) {
+          mensaje = "Es una función cuadrática. El dominio es todos los reales. El rango depende de la orientación de la parábola.";
+        } else if (expr.includes("/") && expr.includes("x")) {
+          mensaje = "Es una función racional. Tiene una asíntota vertical donde el denominador se hace cero.";
+          tieneAsintotas = true;
+        } else if (expr.includes("x")) {
+          mensaje = "Es una función lineal. Su dominio y rango son todos los reales.";
+        } else {
+          mensaje = "Ingresa una función válida con 'x'.";
+        }
+
+        document.getElementById("respuesta").innerText = mensaje;
+        hablar(mensaje);
+
+        // Datos para graficar
+        const x = [];
+        const y = [];
+        for (let i = -20; i <= 20; i += 0.1) {
+          try {
+            const val = f(i);
+            if (isFinite(val)) {
+              x.push(i);
+              y.push(val);
+            } else {
+              x.push(i);
+              y.push(null); // Saltar asíntotas
+            }
+          } catch {
+            x.push(i);
+            y.push(null);
+          }
+        }
+
+        const data = [{
+          x: x,
+          y: y,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: '#663399' }
+        }];
+
+        Plotly.newPlot("grafica", data, {
+          title: "Gráfica de la función",
+          xaxis: { title: "x" },
+          yaxis: { title: "f(x)" }
+        });
+
+      } catch (e) {
+        const errorMsg = "No pude entender esa función. Revisa la sintaxis.";
+        document.getElementById("respuesta").innerText = errorMsg;
+        hablar(errorMsg);
       }
-
-      document.getElementById("respuesta").innerText = respuesta;
-      hablar(respuesta);
     }
   </script>
 </body>
 </html>
+
