@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <title>Bot de Funciones: Dominio, Rango y Asíntotas</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
   <style>
     body {
       background: #f0e6ff;
@@ -57,75 +58,76 @@
     function analizarFuncion() {
       const entrada = document.getElementById("funcionInput").value.trim().toLowerCase();
       const salida = document.getElementById("respuesta");
-      const expr = entrada.replace("f(x)=", "").replace("^", "**");
+      const exprRaw = entrada.replace("f(x)=", "");
 
-      // Validación de sintaxis
-      let f;
+      let expr;
       try {
-        f = new Function("x", "return " + expr);
-        f(1);
-      } catch (error) {
+        expr = math.parse(exprRaw);
+      } catch (e) {
         const msg = "⚠️ Error: función mal escrita. Verifica la sintaxis.";
         salida.innerText = msg;
         hablar(msg);
         return;
       }
 
-      let tipo = "Desconocido";
-      let dominio = "Df: {x ∈ ℝ}";
-      let rango = "Rf: {y ∈ ℝ}";
       let asintotasVert = [];
       let asintotasHorz = null;
-      let respuesta = "";
+      let dominio = "Df: {x \u2208 \u211d}";
+      let rango = "Rf: {y \u2208 \u211d}";
+      let tipo = "Desconocido";
+      const scope = { x: 0 };
 
-      try {
-        // Clasificación
-        if (expr.includes("**2")) tipo = "Cuadrática";
-        else if (expr.includes("/") && expr.includes("x")) tipo = "Racional";
-        else if (expr.includes("x")) tipo = "Lineal";
-        else tipo = "Constante";
-
-        // Calcular asíntotas verticales
-        const denominadores = expr.match(/\/\(([^)]+)\)/g);
-        if (denominadores) {
-          denominadores.forEach(p => {
-            const ecuacion = p.replace("/(", "").replace(")", "");
-            const raiz = resolverCorte(ecuacion);
-            if (raiz !== null) {
-              asintotasVert.push(raiz);
-              dominio = `Df: {x ∈ ℝ | x ≠ ${asintotasVert.join(", ")}}`;
-            }
-          });
-        }
-
-        // Calcular asíntota horizontal (solo racional simple)
-        const numeradorGrado = gradoPolinomio(expr.split("/")[0]);
-        const denominadorGrado = gradoPolinomio(expr.split("/")[1]);
-        if (denominadorGrado > numeradorGrado) {
-          asintotasHorz = 0;
-          rango = "Rf: {y ∈ ℝ | y ≠ 0}";
-        }
-
-        // Crear mensaje
-        respuesta = `📌 Tipo de función: ${tipo}
-🧠 Dominio: ${dominio}
-📈 Rango: ${rango}
-⚠️ Asíntotas Verticales: ${asintotasVert.length > 0 ? asintotasVert.map(x => "x = " + x).join(", ") : "Ninguna"}
-➖ Asíntota Horizontal: ${asintotasHorz !== null ? "y = " + asintotasHorz : "Ninguna"}`;
-
-        salida.innerText = respuesta;
-        hablar(respuesta.replace(/\n/g, ". "));
-
-        // Crear gráfico
-        const x = [], y = [];
-        for (let i = -20; i <= 20; i += 0.1) {
-          if (asintotasVert.includes(Math.round(i * 100) / 100)) {
-            x.push(i);
-            y.push(null);
-            continue;
-          }
+      // Buscar denominadores para asíntotas verticales
+      expr.traverse(function (node) {
+        if (node.isOperatorNode && node.op === '/') {
+          const denom = node.args[1];
           try {
-            const val = f(i);
+            const zeros = math.solve(denom, 'x');
+            if (Array.isArray(zeros)) {
+              zeros.forEach(z => asintotasVert.push(Number(z.toFixed(4))));
+            }
+          } catch (e) {}
+        }
+      });
+
+      // Dominio ajustado
+      if (asintotasVert.length > 0) {
+        dominio = `Df: {x \u2208 \u211d | x ≠ ${asintotasVert.join(', ')}}`;
+      }
+
+      // Tipo estimado
+      const exprStr = expr.toString();
+      if (exprStr.includes('x^2') || exprStr.includes('x*x')) tipo = "Cuadrática";
+      else if (exprStr.includes('x') && exprStr.includes('/')) tipo = "Racional";
+      else if (exprStr.includes('x')) tipo = "Lineal";
+
+      // Asíntota horizontal para racional simple
+      const numerador = exprRaw.split("/")[0];
+      const denominador = exprRaw.split("/")[1];
+      const gradoN = numerador ? (numerador.match(/x\^?\*?(\d?)/) ? parseInt(numerador.match(/x\^?\*?(\d?)/)[1] || "1") : 0) : 0;
+      const gradoD = denominador ? (denominador.match(/x\^?\*?(\d?)/) ? parseInt(denominador.match(/x\^?\*?(\d?)/)[1] || "1") : 0) : 0;
+
+      if (gradoD > gradoN) {
+        asintotasHorz = 0;
+        rango = "Rf: {y \u2208 \u211d | y ≠ 0}";
+      }
+
+      let respuesta = `📌 Tipo de función: ${tipo}\n🧠 Dominio: ${dominio}\n📈 Rango: ${rango}\n🔦 Asíntotas Verticales: ${asintotasVert.length > 0 ? asintotasVert.map(x => "x = " + x).join(", ") : "Ninguna"}\n➖ Asíntota Horizontal: ${asintotasHorz !== null ? "y = " + asintotasHorz : "Ninguna"}`;
+
+      salida.innerText = respuesta;
+      hablar(respuesta.replace(/\n/g, '. '));
+
+      // Graficar
+      const f = math.compile(exprRaw);
+      const x = [], y = [];
+      for (let i = -20; i <= 20; i += 0.1) {
+        if (asintotasVert.includes(Math.round(i * 10000) / 10000)) {
+          x.push(i);
+          y.push(null);
+        } else {
+          try {
+            scope.x = i;
+            const val = f.evaluate(scope);
             x.push(i);
             y.push(isFinite(val) ? val : null);
           } catch {
@@ -133,76 +135,50 @@
             y.push(null);
           }
         }
+      }
 
-        const data = [{
+      const data = [
+        {
           x: x,
           y: y,
           type: 'scatter',
           mode: 'lines',
           name: 'Función',
           line: { color: '#8e24aa' }
-        }];
-
-        // Añadir asíntotas verticales (rojas)
-        asintotasVert.forEach(v => {
-          data.push({
-            x: [v, v],
-            y: [-20, 20],
-            type: 'scatter',
-            mode: 'lines',
-            name: `Asíntota x = ${v}`,
-            line: { color: 'red', dash: 'dash' },
-            hoverinfo: 'skip',
-            showlegend: true
-          });
-        });
-
-        // Añadir asíntota horizontal (azul)
-        if (asintotasHorz !== null) {
-          data.push({
-            x: [-20, 20],
-            y: [asintotasHorz, asintotasHorz],
-            type: 'scatter',
-            mode: 'lines',
-            name: `Asíntota y = ${asintotasHorz}`,
-            line: { color: 'blue', dash: 'dot' },
-            hoverinfo: 'skip',
-            showlegend: true
-          });
         }
+      ];
 
-        Plotly.newPlot("grafica", data, {
-          title: "Gráfica de la función",
-          xaxis: { title: "x" },
-          yaxis: { title: "f(x)" }
+      asintotasVert.forEach(v => {
+        data.push({
+          x: [v, v],
+          y: [-20, 20],
+          type: 'scatter',
+          mode: 'lines',
+          name: `Asíntota x = ${v}`,
+          line: { color: 'red', dash: 'dash' },
+          hoverinfo: 'skip',
+          showlegend: true
         });
+      });
 
-      } catch (e) {
-        const msg = "❌ Ocurrió un error inesperado.";
-        salida.innerText = msg;
-        hablar(msg);
+      if (asintotasHorz !== null) {
+        data.push({
+          x: [-20, 20],
+          y: [asintotasHorz, asintotasHorz],
+          type: 'scatter',
+          mode: 'lines',
+          name: `Asíntota y = ${asintotasHorz}`,
+          line: { color: 'blue', dash: 'dot' },
+          hoverinfo: 'skip',
+          showlegend: true
+        });
       }
-    }
 
-    function resolverCorte(expresion) {
-      try {
-        if (expresion.includes("x")) {
-          let parts = expresion.split("x");
-          let coef = parts[0] === "" ? 1 : parseFloat(parts[0]);
-          let constante = parts[1] ? parseFloat(parts[1]) : 0;
-          return Math.round((-constante / coef) * 100) / 100;
-        }
-      } catch {
-        return null;
-      }
-      return null;
-    }
-
-    function gradoPolinomio(expr) {
-      const match = expr.match(/x\s*\*\*\s*(\d)/);
-      if (match) return parseInt(match[1]);
-      if (expr.includes("x")) return 1;
-      return 0;
+      Plotly.newPlot("grafica", data, {
+        title: "Gráfica de la función",
+        xaxis: { title: "x" },
+        yaxis: { title: "f(x)" }
+      });
     }
   </script>
 </body>
