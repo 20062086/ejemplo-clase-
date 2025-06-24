@@ -76,26 +76,35 @@
       let tipo = "Desconocido";
       const scope = { x: 0 };
 
-      // Buscar denominadores para asíntotas verticales
-      expr.traverse(function (node) {
-        if (node.isOperatorNode && node.op === '/') {
-          const denom = node.args[1];
-          try {
-            const simplified = math.simplify(denom.toString());
-            const soluciones = math.solve(simplified.toString(), 'x');
-            if (Array.isArray(soluciones)) {
-              soluciones.forEach(z => {
-                const n = Number(math.evaluate(z));
-                if (!isNaN(n)) {
-                  asintotasVert.push(Number(n.toFixed(4)));
-                }
-              });
-            }
-          } catch (e) {}
+      // Detectar denominador si existe
+      function extraerDenominadores(nodo) {
+        let resultados = [];
+        if (nodo.isOperatorNode && nodo.op === '/') {
+          resultados.push(nodo.args[1]);
         }
+        if (nodo.args) {
+          nodo.args.forEach(sub => resultados = resultados.concat(extraerDenominadores(sub)));
+        }
+        return resultados;
+      }
+
+      const denominadores = extraerDenominadores(expr);
+
+      denominadores.forEach(den => {
+        try {
+          const simplified = math.simplify(den.toString());
+          const solucion = math.solve(simplified.toString(), 'x');
+          if (Array.isArray(solucion)) {
+            solucion.forEach(r => {
+              const val = math.evaluate(r);
+              if (!isNaN(val)) {
+                asintotasVert.push(Number(val.toFixed(4)));
+              }
+            });
+          }
+        } catch (e) {}
       });
 
-      // Dominio ajustado
       if (asintotasVert.length > 0) {
         dominio = `Df: {x ∈ ℝ | x ≠ ${asintotasVert.join(', ')}}`;
       }
@@ -105,21 +114,22 @@
       if (exprStr.includes('x^2') || exprStr.includes('x*x')) tipo = "Cuadrática";
       else if (exprStr.includes('x') && exprStr.includes('/')) tipo = "Racional";
       else if (exprStr.includes('x')) tipo = "Lineal";
+      else tipo = "Constante";
 
-      // Asíntota horizontal básica
-      const exprFrac = math.simplify(exprRaw);
-      const exprText = exprFrac.toString();
-      const numerador = exprText.split('/')[0];
-      const denominador = exprText.split('/')[1];
-      const gradoN = numerador && numerador.includes('x') ? (numerador.match(/\^\d+/) ? parseInt(numerador.match(/\^\d+/)[0].replace('^','')) : 1) : 0;
-      const gradoD = denominador && denominador.includes('x') ? (denominador.match(/\^\d+/) ? parseInt(denominador.match(/\^\d+/)[0].replace('^','')) : 1) : 0;
-
-      if (gradoD > gradoN) {
-        asintotasHorz = 0;
-        rango = "Rf: {y ∈ ℝ | y ≠ 0}";
+      // Asíntota horizontal si grado del num < grado del denom
+      const frac = math.simplify(exprRaw);
+      const fracStr = frac.toString();
+      if (fracStr.includes('/')) {
+        const [num, den] = fracStr.split('/');
+        const gradoN = (num.match(/\^\d+/) || []).map(m => parseInt(m.slice(1)))[0] || (num.includes('x') ? 1 : 0);
+        const gradoD = (den.match(/\^\d+/) || []).map(m => parseInt(m.slice(1)))[0] || (den.includes('x') ? 1 : 0);
+        if (gradoD > gradoN) {
+          asintotasHorz = 0;
+          rango = "Rf: {y ∈ ℝ | y ≠ 0}";
+        }
       }
 
-      let respuesta = `📌 Tipo de función: ${tipo}\n🧠 Dominio: ${dominio}\n📈 Rango: ${rango}\n⚠️ Asíntotas Verticales: ${asintotasVert.length > 0 ? asintotasVert.map(x => "x = " + x).join(", ") : "Ninguna"}\n➖ Asíntota Horizontal: ${asintotasHorz !== null ? "y = " + asintotasHorz : "Ninguna"}`;
+      const respuesta = `📌 Tipo de función: ${tipo}\n🧠 Dominio: ${dominio}\n📈 Rango: ${rango}\n⚠️ Asíntotas Verticales: ${asintotasVert.length ? asintotasVert.map(x => 'x = ' + x).join(', ') : 'Ninguna'}\n➖ Asíntota Horizontal: ${asintotasHorz !== null ? 'y = ' + asintotasHorz : 'Ninguna'}`;
 
       salida.innerText = respuesta;
       hablar(respuesta.replace(/\n/g, '. '));
