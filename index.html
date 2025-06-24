@@ -3,23 +3,23 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Bot de Dominio, Rango y Asíntotas</title>
+<title>Bot de Dominio, Rango y Asíntotas con Voz</title>
 <style>
   body { font-family: Arial, sans-serif; background: #111; color: #eee; padding: 20px; }
   input, button, textarea { font-size: 1rem; padding: 8px; margin-top: 8px; width: 100%; max-width: 400px; }
-  #output { margin-top: 20px; background: #222; padding: 15px; border-radius: 8px; }
+  #output { margin-top: 20px; background: #222; padding: 15px; border-radius: 8px; min-height: 100px; }
   canvas { background: #222; border: 1px solid #555; margin-top: 20px; }
-  .bot-text { margin-top: 10px; font-weight: bold; }
+  .bot-text { margin-top: 10px; font-weight: bold; white-space: pre-line; }
 </style>
 </head>
 <body>
 
-<h1>Bot para Dominio, Rango y Asíntotas</h1>
+<h1>Bot para Dominio, Rango y Asíntotas con Voz</h1>
 
 <label for="funcInput">Escribe tu función de x (ejemplo: 1/(x-2), x^2-4, (x^2-1)/(x-3)):</label>
 <input type="text" id="funcInput" placeholder="f(x) = " value="1/(x-2)" />
 
-<button onclick="procesarFuncion()">Calcular dominio, rango y asíntotas</button>
+<button onclick="procesarFuncion()">Calcular y Hablar</button>
 
 <div id="output"></div>
 
@@ -28,261 +28,260 @@
 <script src="https://cdn.jsdelivr.net/npm/mathjs@11.8.0/lib/browser/math.js"></script>
 
 <script>
-  const output = document.getElementById('output');
-  const canvas = document.getElementById('grafica');
-  const ctx = canvas.getContext('2d');
+const output = document.getElementById('output');
+const canvas = document.getElementById('grafica');
+const ctx = canvas.getContext('2d');
 
-  // Evalúa la función segura usando math.js
-  function evaluarFuncion(expr, x) {
+// Evalúa la función segura usando math.js
+function evaluarFuncion(expr, x) {
+  try {
+    const scope = {x: x};
+    return math.evaluate(expr, scope);
+  } catch {
+    return NaN;
+  }
+}
+
+// Extrae denominador de expresión si es división simple
+function obtenerDenominador(expr) {
+  try {
+    const node = math.parse(expr);
+    if (node.type === 'OperatorNode' && node.op === '/') {
+      return node.args[1].toString();
+    }
+  } catch {}
+  return null;
+}
+
+// Encuentra ceros aproximados de polinomios o funciones simples por bisección
+function encontrarCeros(expr) {
+  const ceros = [];
+  const f = x => {
     try {
-      const scope = {x: x};
-      return math.evaluate(expr, scope);
+      return math.evaluate(expr, {x});
     } catch {
       return NaN;
     }
-  }
-
-  // Detecta asíntotas verticales: puntos donde el denominador se hace cero
-  // Asumimos que la función se ingresó en forma de fracción simple o polinómica
-  // Para simplificar, buscamos en el denominador si hay divisiones.
-  function encontrarAsintotasVerticales(expr) {
-    // Parsear para encontrar denominadores (buscaremos divisiones)
-    const asintotas = new Set();
-    try {
-      const node = math.parse(expr);
-
-      // Función recursiva para buscar divisores
-      function buscarDenominadores(n) {
-        if (n.type === 'OperatorNode' && n.op === '/') {
-          // Encontrar raíces del denominador
-          const denExpr = n.args[1].toString();
-          // Intentamos encontrar ceros del denominador en rango razonable
-          const raices = encontrarCerosPolinomio(denExpr);
-          raices.forEach(r => asintotas.add(r));
+  };
+  const tol = 1e-4;
+  const paso = 0.1;
+  for (let i = -100; i < 100; i += paso) {
+    const y1 = f(i);
+    const y2 = f(i+paso);
+    if (isNaN(y1) || isNaN(y2)) continue;
+    if (y1 * y2 <= 0) {
+      // Bisección
+      let a = i, b = i+paso;
+      for (let k = 0; k < 20; k++) {
+        const m = (a+b)/2;
+        const fm = f(m);
+        if (Math.abs(fm) < tol) {
+          ceros.push(Number(m.toFixed(4)));
+          break;
         }
-        if (n.args) {
-          n.args.forEach(buscarDenominadores);
-        }
-      }
-
-      buscarDenominadores(node);
-    } catch {
-      // No se pudo analizar bien
-    }
-    return Array.from(asintotas).sort((a,b) => a-b);
-  }
-
-  // Encontrar ceros reales aproximados de polinomio simple con método numérico
-  // Para simplicidad, hacemos búsqueda por bisección en intervalo [-100,100]
-  function encontrarCerosPolinomio(expr) {
-    const ceros = [];
-    const f = x => {
-      try {
-        return math.evaluate(expr, {x});
-      } catch {
-        return NaN;
-      }
-    };
-    const tol = 1e-4;
-    const paso = 0.1;
-    for (let i = -100; i < 100; i += paso) {
-      const y1 = f(i);
-      const y2 = f(i+paso);
-      if (isNaN(y1) || isNaN(y2)) continue;
-      if (y1 * y2 <= 0) {
-        // Raíz entre i y i+paso
-        // Usamos bisección para mejorar
-        let a = i, b = i+paso;
-        for (let k = 0; k < 20; k++) {
-          const m = (a+b)/2;
-          const fm = f(m);
-          if (Math.abs(fm) < tol) return ceros.push(Number(m.toFixed(4)));
-          if (f(a)*fm < 0) b = m;
-          else a = m;
-        }
-        ceros.push(Number(((a+b)/2).toFixed(4)));
+        if (f(a)*fm < 0) b = m;
+        else a = m;
       }
     }
-    // Quitar repetidos y ordenar
-    return [...new Set(ceros)].sort((a,b) => a-b);
+  }
+  return [...new Set(ceros)].sort((a,b) => a-b);
+}
+
+// Detecta asíntotas verticales basadas en denominador cero
+function encontrarAsintotasVerticales(expr) {
+  const den = obtenerDenominador(expr);
+  if (!den) return [];
+  return encontrarCeros(den);
+}
+
+// Detectar asíntotas horizontales calculando límites en ±∞ con aproximación
+function encontrarAsintotasHorizontales(expr) {
+  const xPos = 1e6;
+  const xNeg = -1e6;
+  const valPos = evaluarFuncion(expr, xPos);
+  const valNeg = evaluarFuncion(expr, xNeg);
+  const asintotas = [];
+
+  function esNumeroFinito(n) {
+    return typeof n === 'number' && isFinite(n);
   }
 
-  // Detectar asíntota horizontal como límite en +∞ y -∞
-  // Calculamos límite cuando x→∞ y x→-∞ y vemos si converge a un número finito
-  function encontrarAsintotasHorizontales(expr) {
-    // Para infinito, probamos x=10^6 y x=-10^6
-    const xGrandePos = 1e6;
-    const xGrandeNeg = -1e6;
-    let limPos = evaluarFuncion(expr, xGrandePos);
-    let limNeg = evaluarFuncion(expr, xGrandeNeg);
+  if (esNumeroFinito(valPos)) asintotas.push({valor: valPos, tipo: '+∞'});
+  if (esNumeroFinito(valNeg) && Math.abs(valNeg - valPos) > 1e-3) asintotas.push({valor: valNeg, tipo: '-∞'});
 
-    function esFinitoNumero(n) {
-      return typeof n === 'number' && isFinite(n);
-    }
+  return asintotas;
+}
 
-    const asintotas = [];
+// Dominio: ℝ menos asíntotas verticales
+function calcularDominio(asintotasV) {
+  if (asintotasV.length === 0) return 'D_f = \\{x \\in \\mathbb{R}\\}';
+  const excluidos = asintotasV.map(v => v.toFixed(4));
+  return `D_f = \\{x \\in \\mathbb{R} \\mid x \\neq ${excluidos.join(', ')}\\}`;
+}
 
-    if (esFinitoNumero(limPos)) {
-      asintotas.push({valor: limPos, tipo: '+∞'});
-    }
-    if (esFinitoNumero(limNeg) && Math.abs(limNeg - limPos) > 1e-3) {
-      asintotas.push({valor: limNeg, tipo: '-∞'});
-    }
-    // Si son iguales, solo una asintota horizontal
-    return asintotas;
+// Rango aproximado muestreando valores
+function calcularRango(expr) {
+  const f = x => evaluarFuncion(expr, x);
+  const vals = [];
+  for(let x = -100; x <= 100; x += 0.5) {
+    let y = f(x);
+    if (!isNaN(y) && isFinite(y)) vals.push(y);
   }
+  if (vals.length === 0) return 'No se pudo determinar rango';
+  const minY = Math.min(...vals);
+  const maxY = Math.max(...vals);
+  return `R_f \\approx [${minY.toFixed(3)}, ${maxY.toFixed(3)}]`;
+}
 
-  // Calcular dominio: números reales menos las asíntotas verticales
-  function calcularDominio(asintotasV) {
-    if (asintotasV.length === 0) {
-      return 'D_f = \\{x \\in \\mathbb{R}\\}';
+// Dibujar gráfica con función y asíntotas
+function dibujarGrafica(expr, asintotasV, asintotasH) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  const xMin = -10, xMax = 10;
+  const yMin = -10, yMax = 10;
+
+  function xCanvas(x) { return (x - xMin) / (xMax - xMin) * w; }
+  function yCanvas(y) { return h - (y - yMin) / (yMax - yMin) * h; }
+
+  // Ejes
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, yCanvas(0));
+  ctx.lineTo(w, yCanvas(0));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(xCanvas(0), 0);
+  ctx.lineTo(xCanvas(0), h);
+  ctx.stroke();
+
+  // Función (verde)
+  ctx.strokeStyle = '#0f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  let primerPunto = true;
+  for(let px=0; px<w; px++) {
+    let x = xMin + (px/w)*(xMax - xMin);
+    let y = evaluarFuncion(expr, x);
+    if (isNaN(y) || !isFinite(y) || y > 1e3 || y < -1e3) {
+      primerPunto = true;
+      continue;
     }
-    const excluidos = asintotasV.map(v => v.toFixed(4));
-    return `D_f = \\{x \\in \\mathbb{R} \\mid x \\neq ${excluidos.join(', ')}\\}`;
-  }
-
-  // Para rango: aproximamos con muestreo en intervalo amplio
-  // Nota: rango exacto puede ser muy complicado en funciones complejas
-  function calcularRango(expr) {
-    const f = x => evaluarFuncion(expr, x);
-    const vals = [];
-    for (let x = -100; x <= 100; x += 0.5) {
-      let y = f(x);
-      if (!isNaN(y) && isFinite(y)) vals.push(y);
-    }
-    if (vals.length === 0) return 'No se pudo determinar rango';
-    const minY = Math.min(...vals);
-    const maxY = Math.max(...vals);
-    return `R_f \\approx [${minY.toFixed(3)}, ${maxY.toFixed(3)}]`;
-  }
-
-  // Dibuja la gráfica, función y asíntotas
-  function dibujarGrafica(expr, asintotasV, asintotasH) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // Rango y dominio visual para el gráfico
-    const xMin = -10, xMax = 10;
-    const yMin = -10, yMax = 10;
-
-    // Función para transformar coordenadas matemáticas a canvas
-    function xCanvas(x) {
-      return (x - xMin) / (xMax - xMin) * w;
-    }
-    function yCanvas(y) {
-      return h - (y - yMin) / (yMax - yMin) * h;
-    }
-
-    // Dibujar ejes
-    ctx.strokeStyle = '#555';
-    ctx.lineWidth = 1;
-    // eje X
-    ctx.beginPath();
-    ctx.moveTo(0, yCanvas(0));
-    ctx.lineTo(w, yCanvas(0));
-    ctx.stroke();
-    // eje Y
-    ctx.beginPath();
-    ctx.moveTo(xCanvas(0), 0);
-    ctx.lineTo(xCanvas(0), h);
-    ctx.stroke();
-
-    // Dibujar función
-    ctx.strokeStyle = '#0f0';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let primerPunto = true;
-    for(let px=0; px<w; px++) {
-      let x = xMin + (px/w)*(xMax - xMin);
-      let y = evaluarFuncion(expr, x);
-      if (isNaN(y) || !isFinite(y) || y > 1e3 || y < -1e3) {
-        primerPunto = true; // rompemos la línea en discontinuidades
-        continue;
-      }
-      let cx = px;
-      let cy = yCanvas(y);
-      if (primerPunto) {
-        ctx.moveTo(cx, cy);
-        primerPunto = false;
-      } else {
-        ctx.lineTo(cx, cy);
-      }
-    }
-    ctx.stroke();
-
-    // Dibujar asíntotas verticales en rojo punteado
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    asintotasV.forEach(xv => {
-      if (xv < xMin || xv > xMax) return; // fuera de rango gráfico
-      ctx.beginPath();
-      ctx.moveTo(xCanvas(xv), 0);
-      ctx.lineTo(xCanvas(xv), h);
-      ctx.stroke();
-    });
-
-    // Dibujar asíntotas horizontales en azul punteado
-    ctx.strokeStyle = 'blue';
-    asintotasH.forEach(horiz => {
-      let yv = horiz.valor;
-      if (yv < yMin || yv > yMax) return;
-      ctx.beginPath();
-      ctx.moveTo(0, yCanvas(yv));
-      ctx.lineTo(w, yCanvas(yv));
-      ctx.stroke();
-    });
-    ctx.setLineDash([]);
-  }
-
-  // Función principal que hace todo
-  function procesarFuncion() {
-    output.innerHTML = '';
-    const funcStr = document.getElementById('funcInput').value.trim();
-    if (!funcStr) {
-      output.innerHTML = 'Por favor ingresa una función.';
-      return;
-    }
-
-    // Detectar asíntotas verticales
-    const asintotasV = encontrarAsintotasVerticales(funcStr);
-
-    // Detectar asíntotas horizontales
-    const asintotasH = encontrarAsintotasHorizontales(funcStr);
-
-    // Calcular dominio
-    const dominio = calcularDominio(asintotasV);
-
-    // Calcular rango aproximado
-    const rango = calcularRango(funcStr);
-
-    // Mostrar texto respuesta bot
-    let textoBot = `<p class="bot-text">¡Hola! Aquí están los resultados para la función <b>f(x) = ${funcStr}</b>:</p>`;
-    textoBot += `<p>Dominio: <code>${dominio}</code></p>`;
-    textoBot += `<p>Rango (aproximado): <code>${rango}</code></p>`;
-
-    if (asintotasV.length > 0) {
-      textoBot += `<p>Asíntotas verticales en x = ${asintotasV.map(v => v.toFixed(4)).join(', ')}</p>`;
+    let cx = px;
+    let cy = yCanvas(y);
+    if (primerPunto) {
+      ctx.moveTo(cx, cy);
+      primerPunto = false;
     } else {
-      textoBot += `<p>No hay asíntotas verticales.</p>`;
+      ctx.lineTo(cx, cy);
     }
-    if (asintotasH.length > 0) {
-      textoBot += `<p>Asíntotas horizontales:</p><ul>`;
-      asintotasH.forEach(a => {
-        textoBot += `<li>y = ${a.valor.toFixed(4)} (límite cuando x → ${a.tipo})</li>`;
-      });
-      textoBot += `</ul>`;
-    } else {
-      textoBot += `<p>No hay asíntotas horizontales.</p>`;
-    }
-
-    output.innerHTML = textoBot;
-
-    // Dibujar gráfica
-    dibujarGrafica(funcStr, asintotasV, asintotasH);
   }
+  ctx.stroke();
+
+  // Asíntotas verticales (rojo punteado)
+  ctx.strokeStyle = 'red';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 5]);
+  asintotasV.forEach(xv => {
+    if (xv < xMin || xv > xMax) return;
+    ctx.beginPath();
+    ctx.moveTo(xCanvas(xv), 0);
+    ctx.lineTo(xCanvas(xv), h);
+    ctx.stroke();
+  });
+
+  // Asíntotas horizontales (azul punteado)
+  ctx.strokeStyle = 'blue';
+  asintotasH.forEach(horiz => {
+    let yv = horiz.valor;
+    if (yv < yMin || yv > yMax) return;
+    ctx.beginPath();
+    ctx.moveTo(0, yCanvas(yv));
+    ctx.lineTo(w, yCanvas(yv));
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+// Bot habla texto usando SpeechSynthesis
+function hablar(texto) {
+  if (!window.speechSynthesis) return; // no soportado
+  speechSynthesis.cancel(); // cancelar cualquier voz previa
+  const utterance = new SpeechSynthesisUtterance(texto);
+  utterance.lang = 'es-ES';
+  utterance.rate = 1;
+  speechSynthesis.speak(utterance);
+}
+
+// Función principal
+function procesarFuncion() {
+  output.innerHTML = '';
+  const funcStr = document.getElementById('funcInput').value.trim();
+  if (!funcStr) {
+    output.innerHTML = 'Por favor ingresa una función.';
+    return;
+  }
+
+  // Asíntotas verticales
+  const asintotasV = encontrarAsintotasVerticales(funcStr);
+
+  // Asíntotas horizontales
+  const asintotasH = encontrarAsintotasHorizontales(funcStr);
+
+  // Dominio
+  const dominio = calcularDominio(asintotasV);
+
+  // Rango
+  const rango = calcularRango(funcStr);
+
+  // Texto para mostrar y hablar
+  let textoBot = `Hola! Para la función f de x igual a ${funcStr}.\n`;
+  textoBot += `El dominio es: ${dominio.replace(/\\[|\\]|\\\\/g,'')}. `;
+  textoBot += `El rango aproximado es: ${rango.replace(/\\[|\\]|\\\\/g,'')}. `;
+
+  if (asintotasV.length > 0) {
+    textoBot += `Asíntotas verticales en x igual a ${asintotasV.map(v => v.toFixed(2)).join(', ')}. `;
+  } else {
+    textoBot += `No hay asíntotas verticales. `;
+  }
+
+  if (asintotasH.length > 0) {
+    textoBot += `Asíntotas horizontales en y igual a `;
+    textoBot += asintotasH.map(a => a.valor.toFixed(2)).join(' y ') + '.';
+  } else {
+    textoBot += `No hay asíntotas horizontales.`;
+  }
+
+  // Mostrar texto formateado (latex simple)
+  let htmlTexto = `<p class="bot-text">¡Hola! Aquí están los resultados para <b>f(x) = ${funcStr}</b>:</p>`;
+  htmlTexto += `<p>Dominio: <code>${dominio}</code></p>`;
+  htmlTexto += `<p>Rango (aproximado): <code>${rango}</code></p>`;
+  if (asintotasV.length > 0) {
+    htmlTexto += `<p>Asíntotas verticales en x = ${asintotasV.map(v => v.toFixed(4)).join(', ')}</p>`;
+  } else {
+    htmlTexto += `<p>No hay asíntotas verticales.</p>`;
+  }
+  if (asintotasH.length > 0) {
+    htmlTexto += `<p>Asíntotas horizontales:</p><ul>`;
+    asintotasH.forEach(a => {
+      htmlTexto += `<li>y = ${a.valor.toFixed(4)} (límite cuando x → ${a.tipo})</li>`;
+    });
+    htmlTexto += `</ul>`;
+  } else {
+    htmlTexto += `<p>No hay asíntotas horizontales.</p>`;
+  }
+
+  output.innerHTML = htmlTexto;
+
+  // Dibujar gráfica
+  dibujarGrafica(funcStr, asintotasV, asintotasH);
+
+  // Hablar respuesta
+  hablar(textoBot);
+}
 </script>
 
 </body>
